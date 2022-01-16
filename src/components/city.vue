@@ -1,7 +1,7 @@
 <template>
   <div style="margin-top: 20px">
     <button v-if="checkArea.code !== baseArea.code" @click="backParent">返回上级</button>
-    <div id="map1" style="width: 1450px;height: 800px"></div>
+    <div id="map1" style="width: 100%;height: 800px"></div>
   </div>
 </template>
 
