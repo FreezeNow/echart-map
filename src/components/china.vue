@@ -1,7 +1,7 @@
 <template>
   <div>
     <button v-if="checkArea.code !== baseArea.code" @click="backParent">返回上级</button>
-    <div id="map" style="width: 100%;height: 800px"></div>
+    <div id="map" ref="map" style="width: 100%;height: 800px"></div>
   </div>
 </template>
 
@@ -12,7 +12,7 @@ export default {
   components: {},
   data() {
     return {
-      mapData: [],
+      mapData: {},
       geoJson: {},
       cityName: '中国',
       echartsMap: undefined,
@@ -22,7 +22,6 @@ export default {
         name: '中国',
         center: undefined,
       },
-      baseMapData: [],
       baseGeoJson: {},
       baseArea: {
         code: 100000,
@@ -34,32 +33,9 @@ export default {
   },
   mounted() {
     this.cityName = '中国';
-    this.echartsMap = echarts.init(document.getElementById('map'));
-    // this.echartsMap.on('georoam', this.listenerZoom);
+    this.echartsMap = echarts.init(this.$refs.map);
     this.echartsMap.on('click', this.mapClick);
     this.loadMapData(this.baseArea.code);
-    // window.requestAnimationFrame
-    // setTimeout(() => {
-
-    // }, 16);
-    // setTimeout(() => {
-    //   this.mapClick({
-    //     data: {
-    //       name: '杭州市',
-    //       code: 330100,
-    //       center: [120.153576, 30.287459],
-    //     },
-    //   });
-    // }, 5000);
-    // setTimeout(() => {
-    //   this.mapClick({
-    //     data: {
-    //       name: '昆明市',
-    //       code: 530100,
-    //       center: [102.712251, 25.040609],
-    //     },
-    //   });
-    // }, 10);
   },
 
   methods: {
@@ -75,44 +51,30 @@ export default {
           .padEnd(6, '0000')}/${areaCode}.geoJson`);
       }
       if (mapJsonStr) {
-        // if (area) {
-
-        // }
-        // const mapJsonStr = require(`@/assets/map/${areaCode}.geoJson`);
         const mapJson = mapJsonStr ? JSON.parse(JSON.stringify(mapJsonStr)) : {};
         if (mapJson.features && mapJson.features.length) {
-          // console.log();
-          const list = [];
           for (let i = 0; i < mapJson.features.length; i++) {
             const element = mapJson.features[i];
             const { properties } = element;
-            list.push({
+            this.mapData[properties.adcode] = {
               name: properties.name,
               code: properties.adcode,
               center: properties.center,
-            });
+            };
           }
-          this.mapData = list;
         }
         if (areaCode === this.baseArea.code) {
-          this.baseMapData = this.mapData;
           this.baseGeoJson = mapJson;
         }
-        // const baseMapData = JSON.parse(JSON.stringify(this.baseMapData));
         const baseGeoJson = JSON.parse(
           JSON.stringify(type ? (type === 'enter' ? this.geoJson : this.baseGeoJson) : this.baseGeoJson)
         );
         if (areaCode !== this.baseArea.code) {
           baseGeoJson.features.push(...mapJson.features);
-          console.log('areaCode', areaCode);
           const index = baseGeoJson.features.findIndex((element) => element.properties.adcode === areaCode);
-          console.log('index', index);
           if (index > -1) {
             baseGeoJson.features.splice(index, 1);
           }
-          //  if (map) {
-          //   //  map.
-          //  }
         }
         if (this.checkArea && this.checkArea.name) {
           this.cityName = this.checkArea.name;
@@ -139,7 +101,6 @@ export default {
             max: 1000,
           },
         };
-        console.log('mapName', mapName);
         echarts.registerMap(mapName, data);
         this.option = {
           geo: {
@@ -147,9 +108,6 @@ export default {
             map: this.cityName,
             roam: true,
             center: this.checkArea && this.checkArea.center ? this.checkArea.center : undefined,
-            label: {
-              show: true,
-            },
             scaleLimit: scaleLimitMap[zoom],
             selectedMode: false,
             showLegendSymbol: false,
@@ -165,16 +123,15 @@ export default {
               borderWidth: 0.5,
             },
             blur: {},
-            // data: this.mapData,
           },
           series: [
             {
               name: '数据名称',
               type: 'map',
+              map: this.cityName,
               geoIndex: 0,
-              data: this.mapData,
+              data: Object.values(this.mapData),
             },
-
             {
               type: 'scatter',
               name: 'test',
@@ -186,26 +143,75 @@ export default {
         this.echartsMap.setOption(this.option);
       }
     },
+
     mapClick(params) {
       const { data } = params;
       if (data && data.code.toString().endsWith('00')) {
         this.option.geo.zoom = 10;
         this.option.geo.center = data.center;
-        // this.echartsMap.setOption(this.option);
         setTimeout(() => {
+          // 点击附近的区块时，先移除选中区块的子集，再将其本身添加回来
+          let mapJsonStr;
+          const areaCode = this.checkArea.code;
+          const dataCode = data.code;
+
+          let continueCode;
+          if (areaCode === 100000 || (areaCode.toString().endsWith('0000') && !dataCode.toString().endsWith('0000'))) {
+          } else if (
+            (!areaCode.toString().endsWith('0000') && !dataCode.toString().endsWith('0000')) ||
+            areaCode.toString().substr(0, 2) === dataCode.toString().substr(0, 2)
+          ) {
+            mapJsonStr = require(`@/assets/map/${areaCode
+              .toString()
+              .substr(0, 2)
+              .padEnd(6, '0000')}.geoJson`);
+
+            continueCode = dataCode.toString().substr(0, 4);
+          } else {
+            mapJsonStr = require(`@/assets/map/100000.geoJson`);
+            continueCode = dataCode.toString().substr(0, 2);
+          }
+          if (continueCode) {
+            const zeros = ''.padEnd(6 - continueCode.length, '0');
+            for (let i = 0; i < this.geoJson?.features?.length; i++) {
+              const element = this.geoJson?.features[i];
+              const { properties } = element;
+              const code = properties.adcode.toString();
+              if (code.endsWith(zeros) || code.startsWith(continueCode)) {
+                continue;
+              }
+              this.geoJson?.features.splice(i, 1);
+              i--;
+            }
+          }
+          if (mapJsonStr) {
+            const mapJson = JSON.parse(JSON.stringify(mapJsonStr));
+            const map = mapJson.features.find(
+              (element) =>
+                element.properties.adcode.toString() ===
+                areaCode
+                  .toString()
+                  .substr(0, continueCode.length)
+                  .padEnd(6, '0')
+            );
+            if (map) {
+              this.geoJson.features.push(map);
+            }
+          }
+          // 添加结束
+
           this.checkArea = data;
           this.loadMapData(data.code, 'enter');
         }, this.animationTime);
       }
-      console.log(params);
     },
     backParent() {
       const { code } = this.checkArea;
       if (code) {
         const areaCode = code.toString();
         this.option.geo.zoom = 0.5;
-        // this.echartsMap.setOption(this.option);
         setTimeout(() => {
+          this.mapData = {};
           if (areaCode.endsWith('0000')) {
             this.checkArea = {
               code: this.baseArea.code,
@@ -225,18 +231,11 @@ export default {
             };
             this.checkArea = data;
             this.loadMapData(data.code, 'leave');
-            // this.mapClick({
-            //   data: {
-            //     code: Number(areaCode.substr(0, 4).padEnd(6, '0')),
-            //   },
-            // });
           }
         }, this.animationTime);
       }
     },
-    listenerZoom(params) {
-      console.log(params);
-    },
+    listenerZoom() {},
   },
 };
 </script>

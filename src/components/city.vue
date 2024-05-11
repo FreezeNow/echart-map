@@ -12,7 +12,7 @@ export default {
   components: {},
   data() {
     return {
-      mapData: [],
+      mapData: {},
       cityName: '中国',
       echartsMap: undefined,
       option: {},
@@ -21,7 +21,6 @@ export default {
         name: '中国',
         center: undefined,
       },
-      baseMapData: [],
       baseGeoJson: {},
       baseArea: {
         code: 100000,
@@ -62,22 +61,17 @@ export default {
             const city = mapJson.features.find((element) => element.properties.adcode === areaCode);
             mapJson.features = [city];
           }
-          const list = [];
           for (let i = 0; i < mapJson.features.length; i++) {
             const element = mapJson.features[i];
             const { properties } = element;
-            list.push({
+            this.mapData[properties.adcode] = {
               name: properties.name,
               code: properties.adcode,
               center: properties.center,
-              acroutes: properties.acroutes,
-            });
+            };
           }
-
-          this.mapData = list;
         }
         if (areaCode === this.baseArea.code) {
-          this.baseMapData = this.mapData;
           this.baseGeoJson = mapJson;
         }
         if (this.checkArea && this.checkArea.name) {
@@ -97,9 +91,6 @@ export default {
             roam: true,
             center: this.checkArea && this.checkArea.center ? this.checkArea.center : undefined,
             selectedMode: false,
-            label: {
-              show: true,
-            },
             scaleLimit: {
               min: 1,
               max: 10,
@@ -128,17 +119,14 @@ export default {
                 color: 'inherit',
               },
             },
-
-            // data: this.mapData,
           },
           series: [
             {
               name: '数据名称',
               type: 'map',
               geoIndex: 0,
-              data: this.mapData,
+              data: Object.values(this.mapData),
             },
-
             {
               type: 'scatter',
               name: 'test',
@@ -155,7 +143,6 @@ export default {
       if (data && data.code) {
         this.option.geo.zoom = 10;
         this.option.geo.center = data.center;
-        // this.echartsMap.setOption(this.option);
         setTimeout(() => {
           this.checkArea = data;
           this.loadMapData(data.code);
@@ -168,8 +155,8 @@ export default {
       if (code) {
         const areaCode = code.toString();
         this.option.geo.zoom = 0.5;
-        // this.echartsMap.setOption(this.option);
         setTimeout(() => {
+          this.mapData = {};
           if (areaCode.endsWith('0000')) {
             this.checkArea = undefined;
             this.loadMapData(this.baseArea.code);
@@ -185,11 +172,6 @@ export default {
             };
             this.checkArea = data;
             this.loadMapData(data.code);
-            // this.mapClick({
-            //   data: {
-            //     code: Number(areaCode.substr(0, 4).padEnd(6, '0')),
-            //   },
-            // });
           }
         }, this.animationTime);
       }

@@ -6,7 +6,6 @@
 </template>
 
 <script>
-import * as echarts from 'echarts';
 import china from './components/china';
 import city from './components/city';
 export default {
